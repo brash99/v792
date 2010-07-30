@@ -3,6 +3,9 @@
 #   This driver is specific to VxWorks BSPs and must be compiled
 #   with access to vxWorks headers.
 #
+# Uncomment the line before for compiling for a Linux/Intel-based Controler
+#ARCH=Linux
+#
 
 #Check Operating system we are using
 ifndef OSNAME
@@ -39,6 +42,8 @@ ifndef LINUXVME_INC
 	LINUXVME_INC	= $CODA/extensions/linuxvme/include
 endif
 CC = gcc
+AR = ar
+RANLIB = ranlib
 DEFS = -DJLAB
 INCS = -I. -I${LINUXVME_INC}
 CFLAGS = -O ${DEFS} -O2  -L. -L${LINUXVME_LIB}
@@ -48,14 +53,34 @@ endif
 
 endif
 
-
+ifeq ($(ARCH),Linux)
+all: echoarch libc792.a
+else
 all: echoarch c792Lib.o
+endif
 
 c792Lib.o: caen792Lib.c c792Lib.h
 	$(CC) -c $(CFLAGS) $(INCS) -o $@ caen792Lib.c
 
+
+libc792.a: c792Lib.o
+	$(CC) -fpic -shared $(CFLAGS) $(INCS) -o libc792.so caen792Lib.c
+	$(AR) ruv libc792.a c792Lib.o
+	$(RANLIB) libc792.a
+
+links: libc792.a
+	ln -sf $(PWD)/libc792.a $(LINUXVME_LIB)/libc792.a
+	ln -sf $(PWD)/libc792.so $(LINUXVME_LIB)/libc792.so
+	ln -sf $(PWD)/c792Lib.h $(LINUXVME_INC)/c792Lib.h
+
 clean:
-	rm -f *.o
+	rm -f *.o *.so *.a
 
 echoarch:
 	echo "Make for $(ARCH)"
+
+rol:
+	make -f Makefile-rol
+
+rolclean:
+	make -f Makefile-rol clean

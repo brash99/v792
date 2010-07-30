@@ -424,7 +424,7 @@ c792ReadEvent(int id, UINT32 *data)
     /* Read Header - Get Word count */
     header = c792Read32(&c792pl[id]->data[dCnt]);
     if((header&C792_DATA_ID_MASK) != C792_HEADER_DATA) {
-      logMsg("c792ReadEvent: ERROR: Invalid Header Word 0x%08x\n",header,0,0,0,0,0);
+      logMsg("c792ReadEvent: ERROR: Invalid Header Word 0x%08x (0x%08x)\n",header,c792pl[id]->data[dCnt],0,0,0,0);
       return(-1);
     }else{
       nWords = (header&C792_WORDCOUNT_MASK)>>8;
@@ -548,7 +548,7 @@ c792FlushEvent(int id, int fflag)
 *       call to c792ReadBlock to increment the number of events Read.
 *         (e.g.   c792IncrEventBlk(0,15);
 */
-// FIXME: skipped c792ReadBlock for now.
+
 int
 c792ReadBlock(int id, volatile UINT32 *data, int nwrds)
 {
@@ -602,7 +602,11 @@ c792ReadBlock(int id, volatile UINT32 *data, int nwrds)
     if((retVal>0) && (stat)) {
       c792Write(&c792p[id]->bitClear1, C792_VME_BUS_ERROR);
       /*logMsg("c792ReadBlock: INFO: DMA terminated by QDC - Transfer OK\n",0,0,0,0,0,0); */
+#ifdef VXWORKS
       xferCount = (nwrds - (retVal>>2));  /* Number of Longwords transfered */
+#else
+      xferCount = (retVal>>2);  /* Number of Longwords transfered */
+#endif
       trailer = data[xferCount-1];
 #ifndef VXWORKS
       trailer = LSWAP(trailer);
@@ -1170,7 +1174,7 @@ c792Read32(volatile unsigned long *addr)
   unsigned long rval;
   rval = *addr;
 #ifndef VXWORKS
-  rval = SSWAP(rval);
+  rval = LSWAP(rval);
 #endif
   return rval;
 }
