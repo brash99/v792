@@ -53,12 +53,11 @@ rocPrestart()
 
   /* PRogram/Init VME Modules Here */
   /* Assume ADCs have been Initialized at boot in c792Init() call */
-  /* Setup ADCs (no sparcification) */
+  /* Setup ADCs (no sparcification, enable berr for block reads) */
   c792Sparse(ADC_ID,0,0);
   c792Clear(ADC_ID);
+  c792EnableBerr(ADC_ID);
 
-  c792Control(ADC_ID,C792_BERR_ENABLE | C792_BLK_END | 1<<5);
-    
   c792Status(ADC_ID,0,0);
   
 

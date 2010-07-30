@@ -27,10 +27,11 @@
 #include "fppLib.h"
 #else
 #include "jvme.h"
+#include <pthread.h>
 #endif
 
-#include "stdio.h"
-#include "string.h"
+#include <stdio.h>
+#include <string.h>
 
 /* Include QDC definitions */
 #include "c792Lib.h"
@@ -50,6 +51,16 @@ IMPORT  STATUS sysBusToLocalAdrs(int, char *, char **);
 IMPORT  STATUS intDisconnect(int);
 IMPORT  STATUS sysIntEnable(int);
 IMPORT  STATUS sysIntDisable(int);
+#endif
+
+/* Mutex to guard c792 reads/writes - Linux only */
+#ifdef VXWORKS
+#define C792LOCK
+#define C792UNLOCK
+#else
+pthread_mutex_t c792mutex = PTHREAD_MUTEX_INITIALIZER;
+#define C792LOCK   pthread_mutex_lock(&c792mutex);
+#define C792UNLOCK pthread_mutex_unlock(&c792mutex);
 #endif
 
 /* Register Read/Write routines */
@@ -184,7 +195,12 @@ c792Init (UINT32 addr, UINT32 addr_inc, int nadc, UINT16 crateID)
       }
     }
     Nc792++;
+#ifdef VXWORKS
     printf("Initialized QDC ID %d at address 0x%08x \n",ii,(UINT32) c792p[ii]);
+#else
+    printf("Initialized QDC ID %d at VME (USER) address 0x%08x (0x%08x) \n",ii,
+	   (UINT32)(c792p[ii]) - c792MemOffset, (UINT32) c792p[ii]);
+#endif
   }
 
 #ifdef VXWORKS
@@ -262,7 +278,7 @@ c792Status( int id, int reg, int sflag)
 
 
   /* read various registers */
-
+  C792LOCK;
   stat1 = c792Read(&c792p[id]->status1)&C792_STATUS1_MASK;
   stat2 = c792Read(&c792p[id]->status2)&C792_STATUS2_MASK;
   bit1 =  c792Read(&c792p[id]->bitSet1)&C792_BITSET1_MASK;
@@ -272,6 +288,7 @@ c792Status( int id, int reg, int sflag)
   iLvl = c792Read(&c792p[id]->intLevel)&C792_INTLEVEL_MASK;
   iVec = c792Read(&c792p[id]->intVector)&C792_INTVECTOR_MASK;
   evTrig = c792Read(&c792p[id]->evTrigger)&C792_EVTRIGGER_MASK;
+  C792UNLOCK;
 
   /* Get info from registers */
   if(stat1&C792_DATA_READY) DRdy = 1;
@@ -281,7 +298,12 @@ c792Status( int id, int reg, int sflag)
 
   /* print out status info */
 
+#ifdef VXWORKS
   printf("STATUS for QDC id %d at base address 0x%x \n",id,(UINT32) c792p[id]);
+#else
+  printf("STATUS for QDC id %d at base VME (USER) address 0x%x (0x%08x)\n",id,
+	 (UINT32)(c792p[id]) - c792MemOffset, (UINT32) c792p[id]);
+#endif
   printf("---------------------------------------------- \n");
 
   if( (iLvl>0) && (evTrig>0)) {
@@ -349,8 +371,10 @@ c792PrintEvent(int id, int pflag)
 
   /* Check if there is a valid event */
 
+  C792LOCK;
   if(c792Read(&c792p[id]->status2)&C792_BUFFER_EMPTY) {
     printf("c792PrintEvent: Data Buffer is EMPTY!\n");
+    C792UNLOCK;
     return(0);
   }
   if(c792Read(&c792p[id]->status1)&C792_DATA_READY) {
@@ -359,6 +383,7 @@ c792PrintEvent(int id, int pflag)
     header = c792Read32(&c792pl[id]->data[0]);
     if((header&C792_DATA_ID_MASK) != C792_HEADER_DATA) {
       printf("c792PrintEvent: ERROR: Invalid Header Word 0x%08x\n",header);
+      C792UNLOCK;
       return(-1);
     }else{
       printf("  ADC DATA for Module %d\n",id);
@@ -376,6 +401,7 @@ c792PrintEvent(int id, int pflag)
     trailer = c792Read32(&c792pl[id]->data[dCnt]);
     if((trailer&C792_DATA_ID_MASK) != C792_TRAILER_DATA) {
       printf("c792PrintEvent: ERROR: Invalid Trailer Word 0x%08x\n",trailer);
+      C792UNLOCK;
       return(-1);
     }else{
       evID = trailer&C792_EVENTCOUNT_MASK;
@@ -383,12 +409,17 @@ c792PrintEvent(int id, int pflag)
       printf("  Trailer: 0x%08x   Event Count = %d \n",trailer,evID);
     }
     C792_EXEC_SET_EVTREADCNT(id,evID);
+    C792UNLOCK;
     return (dCnt);
 
   }else{
     printf("c792PrintEvent: Data Not ready for readout!\n");
+    C792UNLOCK;
     return(0);
   }
+
+  C792UNLOCK;
+
 }
 
 
@@ -415,8 +446,10 @@ c792ReadEvent(int id, UINT32 *data)
 
   /* Check if there is a valid event */
 
+  C792LOCK;
   if(c792Read(&c792p[id]->status2)&C792_BUFFER_EMPTY) {
     logMsg("c792ReadEvent: Data Buffer is EMPTY!\n",0,0,0,0,0,0);
+    C792UNLOCK;
     return(0);
   }
   if(c792Read(&c792p[id]->status1)&C792_DATA_READY) {
@@ -425,6 +458,7 @@ c792ReadEvent(int id, UINT32 *data)
     header = c792Read32(&c792pl[id]->data[dCnt]);
     if((header&C792_DATA_ID_MASK) != C792_HEADER_DATA) {
       logMsg("c792ReadEvent: ERROR: Invalid Header Word 0x%08x (0x%08x)\n",header,c792pl[id]->data[dCnt],0,0,0,0);
+      C792UNLOCK;
       return(-1);
     }else{
       nWords = (header&C792_WORDCOUNT_MASK)>>8;
@@ -443,6 +477,7 @@ c792ReadEvent(int id, UINT32 *data)
     trailer = c792Read32(&c792pl[id]->data[dCnt]);
     if((trailer&C792_DATA_ID_MASK) != C792_TRAILER_DATA) {
       logMsg("c792ReadEvent: ERROR: Invalid Trailer Word 0x%08x\n",trailer,0,0,0,0,0);
+      C792UNLOCK;
       return(-1);
     }else{
       evID = trailer&C792_EVENTCOUNT_MASK;
@@ -454,12 +489,17 @@ c792ReadEvent(int id, UINT32 *data)
       dCnt++;
     }
     C792_EXEC_SET_EVTREADCNT(id,evID);
+    C792UNLOCK;
     return (dCnt);
 
   }else{
     logMsg("c792ReadEvent: Data Not ready for readout!\n",0,0,0,0,0,0);
+    C792UNLOCK;
     return(0);
   }
+
+  C792UNLOCK;
+
 }
 
 /*******************************************************************************
@@ -485,8 +525,10 @@ c792FlushEvent(int id, int fflag)
 
   /* Check if there is a valid event */
 
+  C792LOCK;
   if((c792p[id]->status2)&C792_BUFFER_EMPTY) {
     if(fflag > 0) logMsg("c792FlushEvent: Data Buffer is EMPTY!\n",0,0,0,0,0,0);
+    C792UNLOCK;
     return(0);
   }
 
@@ -525,12 +567,17 @@ c792FlushEvent(int id, int fflag)
     }
     if(fflag > 1) printf("\n");
 
+    C792UNLOCK;
     return (dCnt);
 
   }else{
     if(fflag > 0) logMsg("c792FlushEvent: Data Not ready for readout!\n",0,0,0,0,0,0);
+    C792UNLOCK;
     return(0);
   }
+
+  C792UNLOCK;
+
 }
 
 
@@ -563,7 +610,7 @@ c792ReadBlock(int id, volatile UINT32 *data, int nwrds)
     return(ERROR);
   }
 
-
+  C792LOCK;
 #ifdef VXWORKSPPC
   /* Don't bother checking if there is a valid event. Just blast data out of the 
      FIFO Valid or Invalid 
@@ -573,6 +620,7 @@ c792ReadBlock(int id, volatile UINT32 *data, int nwrds)
   retVal = sysVmeDmaSend((UINT32)data, vmeAdr, (nwrds<<2), 0);
   if(retVal < 0) {
     logMsg("c792ReadBlock: ERROR in DMA transfer Initialization 0x%x\n",retVal,0,0,0,0,0);
+    C792UNLOCK;
     return(ERROR);
   }
   /* Wait until Done or Error */
@@ -589,6 +637,7 @@ c792ReadBlock(int id, volatile UINT32 *data, int nwrds)
   retVal = vmeDmaSend((UINT32)data, vmeAdr, (nwrds<<2));
   if(retVal < 0) {
     logMsg("c792ReadBlock: ERROR in DMA transfer Initialization 0x%x\n",retVal,0,0,0,0,0);
+    C792UNLOCK;
     return(ERROR);
   }
   /* Wait until Done or Error */
@@ -614,6 +663,7 @@ c792ReadBlock(int id, volatile UINT32 *data, int nwrds)
       if ((trailer&C792_DATA_ID_MASK) == C792_TRAILER_DATA) {
 	evID = trailer&C792_EVENTCOUNT_MASK;
 	C792_EXEC_SET_EVTREADCNT(id,evID);
+	C792UNLOCK;
 	return(xferCount); /* Return number of data words transfered */
       } else {
 	/* check if it is a filler word. if so then back up one word and check again */
@@ -624,18 +674,22 @@ c792ReadBlock(int id, volatile UINT32 *data, int nwrds)
 	if ((trailer&C792_DATA_ID_MASK) == C792_TRAILER_DATA) {
 	  evID = trailer&C792_EVENTCOUNT_MASK;
 	  C792_EXEC_SET_EVTREADCNT(id,evID);
+	  C792UNLOCK;
 	  return(xferCount-1);
 	} else {
 	  logMsg("c792ReadBlock: ERROR: Invalid Trailer data 0x%x\n",data[xferCount-1],0,0,0,0,0);
+	  C792UNLOCK;
 	  return(ERROR);
 	}
       }
     } else {
       logMsg("c792ReadBlock: ERROR in DMA transfer 0x%x\n",retVal,0,0,0,0,0);
+      C792UNLOCK;
       return(ERROR);
     }
   }
 
+  C792UNLOCK;
   return(OK);
 
 }
@@ -683,16 +737,20 @@ c792Int (void)
        or until the Data buffer is empty. The later case would
        indicate a possible error. In either case the data is
        effectively thrown away */
+    C792LOCK;
     nevt1 = c792Read(&c792p[c792IntID]->evTrigger)&C792_EVTRIGGER_MASK;
+    C792UNLOCK;
     nevt2 = c792Dready(c792IntID);
     if(nevt2<nevt1) {
       logMsg("c792Int: ERROR: Event Trig Register(%d) < # Events Ready (%d)\n",
              nevt1,nevt2,0,0,0,0);
       c792Clear(c792IntID);
     } else {
+      C792LOCK;
       for(ii=0;ii<nevt1;ii++) {
 	C792_EXEC_INCR_EVENT(c792IntID);
       }
+      C792UNLOCK;
     }
 
     /* logMsg("c792Int: Processed %d events\n",nevt,0,0,0,0,0); */
@@ -823,10 +881,12 @@ c792IntEnable (int id, UINT16 evCnt)
   c792IntCount = 0;
   c792IntRunning = TRUE;
   /* Enable interrupts on QDC */
+  C792LOCK;
   c792Write(&c792p[c792IntID]->intVector, c792IntVec);
   c792Write(&c792p[c792IntID]->intLevel, c792IntLevel);
   c792Write(&c792p[c792IntID]->evTrigger, c792IntEvCount);
-  
+  C792UNLOCK;
+
   return(OK);
 }
 
@@ -850,6 +910,7 @@ c792IntDisable (int iflag)
 #ifdef VXWORKS
   sysIntDisable(c792IntLevel);   /* Disable VME interrupts */
 #endif
+  C792LOCK;
   c792Write(&c792p[c792IntID]->evTrigger, 0);
 
   /* Tell tasks that Interrupts have been disabled */
@@ -865,7 +926,8 @@ c792IntDisable (int iflag)
       semGive(c792Sem);
     }
 #endif
-  
+  C792UNLOCK;
+
   return (OK);
 }
 
@@ -888,6 +950,7 @@ c792IntResume (void)
   }
 
   if ((c792IntRunning)) {
+    C792LOCK;
     evTrig = c792Read(&c792p[c792IntID]->evTrigger)&C792_EVTRIGGER_MASK;
     if (evTrig == 0) {
 #ifdef VXWORKS
@@ -896,8 +959,10 @@ c792IntResume (void)
       c792Write(&c792p[c792IntID]->evTrigger, c792IntEvCount);
     } else {
       logMsg("c792IntResume: WARNING : Interrupts already enabled \n",0,0,0,0,0,0);
+      C792UNLOCK;
       return(ERROR);
     }
+    C792UNLOCK;
   } else {
       logMsg("c792IntResume: ERROR : Interrupts are not Enabled \n",0,0,0,0,0,0);
       return(ERROR);
@@ -919,11 +984,14 @@ c792IntResume (void)
 UINT16
 c792Sparse(int id, int over, int under)
 {
+  UINT16 rval;
+
   if((id<0) || (c792p[id] == NULL)) {
     printf("c792Sparse: ERROR : QDC id %d not initialized \n",id);
     return(0xffff);
   }
   
+  C792LOCK;
   if(!over) {  /* Set Overflow suppression */
     c792Write(&c792p[id]->bitSet2, C792_OVERFLOW_SUP);
   }else{
@@ -936,7 +1004,11 @@ c792Sparse(int id, int over, int under)
     c792Write(&c792p[id]->bitClear2, C792_UNDERFLOW_SUP);
   }
 
-  return(c792Read(&c792p[id]->bitSet2)&C792_BITSET2_MASK);
+
+  rval = c792Read(&c792p[id]->bitSet2)&C792_BITSET2_MASK;
+  C792UNLOCK;
+
+  return(rval);
 }
 
 
@@ -961,9 +1033,11 @@ c792Dready(int id)
     return (ERROR);
   }
   
+  C792LOCK;
   stat = c792Read(&c792p[id]->status1)&C792_DATA_READY;
   if(stat) {
     C792_EXEC_READ_EVENT_COUNT(id);
+    C792UNLOCK;
     nevts = c792EventCount[id] - c792EvtReadCnt[id];
     if(nevts <= 0) {
       logMsg("c792Dready: ERROR : Bad Event Ready Count (nevts = %d)\n",
@@ -971,6 +1045,7 @@ c792Dready(int id)
       return(ERROR);
     }
   }
+  C792UNLOCK;
 
   return(nevts);
 }
@@ -981,6 +1056,8 @@ c792Dready(int id)
 * c792ClearThresh  - Zero QDC thresholds for all channels
 * c792Gate         - Issue Software Gate to QDC
 * c792Csr2         - Program CSR2 register
+* c792EnableBerr   - Enable Bus Error to finish a block transfer
+* c792DisableBerr  - Disable Bus Error
 * c792IncrEventBlk - Increment Event counter for Block reads
 * c792IncrEvent    - Increment Read pointer to next event in the Buffer
 * c792IncrWord     - Increment Read pointer to next word in the event
@@ -1003,15 +1080,18 @@ c792ClearThresh(int id)
     return;
   }
 
+  C792LOCK;
   for (ii=0;ii< C792_MAX_CHANNELS; ii++) {
     c792Write(&c792p[id]->threshold[ii], 0);
   }
+  C792UNLOCK;
 }
 
 short
 c792SetThresh(int id, int chan, short val)
 {
-  
+  short rval;
+
   if((id<0) || (c792p[id] == NULL)) {
     logMsg("c792SetThresh: ERROR : QDC id %d not initialized \n",id,0,0,0,0,0);
     return(-1);
@@ -1022,9 +1102,12 @@ c792SetThresh(int id, int chan, short val)
     return (-1);
   }  
 
+  C792LOCK;
   c792Write(&c792p[id]->threshold[chan], val);
+  rval = c792Read(&c792p[id]->threshold[chan]);
+  C792UNLOCK;
 
-  return (c792Read(&c792p[id]->threshold[chan]));
+  return (rval);
 }
 
 
@@ -1035,33 +1118,45 @@ c792Gate(int id)
     logMsg("c792Gate: ERROR : QDC id %d not initialized \n",id,0,0,0,0,0);
     return;
   }
+  C792LOCK;
   C792_EXEC_GATE(id);
+  C792UNLOCK;
 }
 
 short
 c792Control(int id, short val)
 {
+  short rval;
+
   if((id<0) || (c792p[id] == NULL)) {
     logMsg("c792Control: ERROR : QDC id %d not initialized \n",id,0,0,0,0,0);
     return(-1);
   }
 
+  C792LOCK;
   c792Write(&c792p[id]->control1, val);
+  rval = c792Read(&c792p[id]->control1);
+  C792UNLOCK;
 
-  return (c792Read(&c792p[id]->control1));
+  return (rval);
 }
 
 short
 c792BitSet2(int id, short val)
 {
+  short rval;
+
   if((id<0) || (c792p[id] == NULL)) {
     logMsg("c792BitSet2: ERROR : QDC id %d not initialized \n",id,0,0,0,0,0);
     return(-1);
   }
 
+  C792LOCK;
   c792Write(&c792p[id]->bitSet2, val);
+  rval = c792Read(&c792p[id]->bitSet2);
+  C792UNLOCK;
 
-  return (c792Read(&c792p[id]->bitSet2));
+  return (rval);
 }
 
 void
@@ -1072,8 +1167,37 @@ c792BitClear2(int id, short val)
     return;
   }
 
+  C792LOCK;
   c792Write(&c792p[id]->bitClear2, val);
+  C792UNLOCK;
+}
 
+void
+c792EnableBerr(int id)
+{
+  if((id<0) || (c792p[id] == NULL)) {
+    logMsg("%s: ERROR : QDC id %d not initialized \n",__FUNCTION__,id,0,0,0,0);
+    return;
+  }
+
+  C792LOCK;
+  c792Write(&c792p[id]->control1, 
+	    c792Read(&c792p[id]->control1) | C792_BERR_ENABLE | C792_BLK_END);
+  C792UNLOCK;
+}
+
+void
+c792DisableBerr(int id)
+{
+  if((id<0) || (c792p[id] == NULL)) {
+    logMsg("%s: ERROR : QDC id %d not initialized \n",__FUNCTION__,id,0,0,0,0);
+    return;
+  }
+
+  C792LOCK;
+  c792Write(&c792p[id]->control1, 
+	    c792Read(&c792p[id]->control1) & ~(C792_BERR_ENABLE | C792_BLK_END));
+  C792UNLOCK;
 }
 
 void
@@ -1095,7 +1219,9 @@ c792IncrEvent(int id)
     logMsg("c792IncrEvent: ERROR : QDC id %d not initialized \n",id,0,0,0,0,0);
     return;
   }
+  C792LOCK;
   C792_EXEC_INCR_EVENT(id);
+  C792UNLOCK;
 }
 
 void
@@ -1105,7 +1231,9 @@ c792IncrWord(int id)
     logMsg("c792IncrWord: ERROR : QDC id %d not initialized \n",id,0,0,0,0,0);
     return;
   }
+  C792LOCK;
   C792_EXEC_INCR_WORD(id);
+  C792UNLOCK;
 }
 
 void
@@ -1115,7 +1243,9 @@ c792Enable(int id)
     logMsg("c792Enable: ERROR : QDC id %d not initialized \n",id,0,0,0,0,0);
     return;
   }
+  C792LOCK;
   c792Write(&c792p[id]->bitClear2, C792_OFFLINE);
+  C792UNLOCK;
 }
 
 void
@@ -1125,7 +1255,9 @@ c792Disable(int id)
     logMsg("c792Disable: ERROR : QDC id %d not initialized \n",id,0,0,0,0,0);
     return;
   }
+  C792LOCK;
   c792Write(&c792p[id]->bitSet2, C792_OFFLINE);
+  C792UNLOCK;
 }
 
 
@@ -1136,7 +1268,9 @@ c792Clear(int id)
     logMsg("c792Clear: ERROR : QDC id %d not initialized \n",id,0,0,0,0,0);
     return;
   }
+  C792LOCK;
   C792_EXEC_DATA_RESET(id);
+  C792UNLOCK;
   c792EvtReadCnt[id] = -1;
   c792EventCount[id] =  0;
 
@@ -1149,8 +1283,10 @@ c792Reset(int id)
     logMsg("c792Reset: ERROR : QDC id %d not initialized \n",id,0,0,0,0,0);
     return;
   }
+  C792LOCK;
   C792_EXEC_DATA_RESET(id);
   C792_EXEC_SOFT_RESET(id);
+  C792UNLOCK;
   c792EvtReadCnt[id] = -1;
   c792EventCount[id] =  0;
 }

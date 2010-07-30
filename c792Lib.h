@@ -105,8 +105,9 @@ struct c792_ROM_struct {
 #define C792_DATA_READY    0x1
 #define C792_BUSY          0x4
 
-#define C792_BERR_ENABLE   0x20
 #define C792_BLK_END       0x04
+#define C792_BERR_ENABLE   0x20
+#define C792_ALIGN64       0x40
 
 #define C792_MEM_TEST            0x1
 #define C792_OFFLINE             0x2
@@ -196,6 +197,8 @@ void   c792Gate(int id);
 short  c792Control(int id, short val);
 short  c792BitSet2(int id, short val);
 void   c792BitClear2(int id, short val);
+void   c792EnableBerr(int id);
+void   c792DisableBerr(int id);
 void   c792IncrEventBlk(int id, int count);
 void   c792IncrEvent(int id);
 void   c792IncrWord(int id);
