@@ -59,8 +59,8 @@ IMPORT  STATUS sysIntDisable(int);
 #define C792UNLOCK
 #else
 pthread_mutex_t c792mutex = PTHREAD_MUTEX_INITIALIZER;
-#define C792LOCK   pthread_mutex_lock(&c792mutex);
-#define C792UNLOCK pthread_mutex_unlock(&c792mutex);
+#define C792LOCK   if(pthread_mutex_lock(&c792mutex)<0) perror("pthread_mutex_lock");
+#define C792UNLOCK if(pthread_mutex_unlock(&c792mutex)<0) perror("pthread_mutex_unlock");
 #endif
 
 /* Register Read/Write routines */
