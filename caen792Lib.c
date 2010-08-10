@@ -724,6 +724,10 @@ c792Int (void)
 #endif
 
   c792IntCount++;
+
+#ifndef VXWORKS
+  vmeBusLock();
+#endif
  
   if (c792IntRoutine != NULL)  {     /* call user routine */
     (*c792IntRoutine) (c792IntArg);
@@ -755,6 +759,10 @@ c792Int (void)
 
     /* logMsg("c792Int: Processed %d events\n",nevt,0,0,0,0,0); */
   }
+
+#ifndef VXWORKS
+  vmeBusUnlock();
+#endif
 
 #ifdef VXWORKSPPC
   fppRestore(&c792Fpr);
@@ -1303,7 +1311,6 @@ c792Read(volatile unsigned short *addr)
   return rval;
 }
 
-/* Register Read/Write routines */
 static unsigned long
 c792Read32(volatile unsigned long *addr)
 {
