@@ -8,6 +8,8 @@
 *          Jefferson Lab Data Acquisition Group
 *          June 2000
 */
+#ifndef __C792LIB__
+#define __C792LIB__
 
 
 #define C792_MAX_CHANNELS   32
@@ -207,13 +209,4 @@ void   c792Disable(int id);
 void   c792Clear(int id);
 void   c792Reset(int id);
 
-
-
-
-
-
-
-
- 
-
-
+#endif /* __C792LIB__ */

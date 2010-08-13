@@ -677,7 +677,7 @@ c792ReadBlock(int id, volatile UINT32 *data, int nwrds)
 	  C792UNLOCK;
 	  return(xferCount-1);
 	} else {
-	  logMsg("c792ReadBlock: ERROR: Invalid Trailer data 0x%x\n",data[xferCount-1],0,0,0,0,0);
+	  logMsg("c792ReadBlock: ERROR: Invalid Trailer data 0x%x\n",trailer,0,0,0,0,0);
 	  C792UNLOCK;
 	  return(ERROR);
 	}
