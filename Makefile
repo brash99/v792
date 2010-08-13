@@ -4,7 +4,7 @@
 #   with access to vxWorks headers.
 #
 # Uncomment the line before for compiling for a Linux/Intel-based Controler
-#ARCH=Linux
+ARCH=Linux
 #
 
 #Check Operating system we are using
