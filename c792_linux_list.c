@@ -51,8 +51,7 @@ rocPrestart()
   unsigned short iflag;
   int stat;
 
-  /* PRogram/Init VME Modules Here */
-  /* Assume ADCs have been Initialized at boot in c792Init() call */
+  /* Program/Init VME Modules Here */
   /* Setup ADCs (no sparcification, enable berr for block reads) */
   c792Sparse(ADC_ID,0,0);
   c792Clear(ADC_ID);
