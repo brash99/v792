@@ -14,6 +14,8 @@
 *
 *  Revision  1.0.1 - Ported to Linux
 *
+* SVN: $Rev$
+*
 */
 
 #ifdef VXWORKS

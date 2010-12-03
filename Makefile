@@ -3,8 +3,10 @@
 #   This driver is specific to VxWorks BSPs and must be compiled
 #   with access to vxWorks headers.
 #
+# SVN: $Rev$
+#
 # Uncomment the line before for compiling for a Linux/Intel-based Controler
-ARCH=Linux
+#ARCH=Linux
 #
 
 #Check Operating system we are using
