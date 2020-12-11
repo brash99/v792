@@ -8,8 +8,6 @@
 *          Jefferson Lab Data Acquisition Group
 *          June 2000
 *
-*  SVN: $Rev$
-*
 */
 #ifndef __C792LIB__
 #define __C792LIB__
