@@ -1,10 +1,10 @@
 /******************************************************************************
 *
 *  c792Lib.h  -  Driver library header file for readout of a C.A.E.N. multiple
-*                Model 792 QDCs using a VxWorks 5.2 or later based single board 
+*                Model 792 QDCs using a VxWorks 5.2 or later based single board
 *                computer.
 *
-*  Author: David Abbott 
+*  Author: David Abbott
 *          Jefferson Lab Data Acquisition Group
 *          June 2000
 *
@@ -20,8 +20,8 @@
 
 /* Define a Structure for access to QDC*/
 struct c792_struct {
-  volatile unsigned long  data[512];
-  unsigned long blank1[512];
+  volatile unsigned int   data[512];
+  unsigned int blank1[512];
   volatile unsigned short rev;
   volatile unsigned short geoAddr;
   volatile unsigned short cbltAddr;
@@ -149,39 +149,6 @@ struct c792_ROM_struct {
 #define C792_EVENTCOUNT_MASK 0x00ffffff
 #define C792_GEO_ADDR_MASK   0xf8000000
 #define C792_ADC_DATA_MASK   0x00000fff
-
-/* Macros */
-#define C792_EXEC_SOFT_RESET(id) {					\
-    c792Write(&c792p[id]->bitSet1, C792_SOFT_RESET);			\
-    c792Write(&c792p[id]->bitClear1, C792_SOFT_RESET);}
-
-#define C792_EXEC_DATA_RESET(id) {					\
-    c792Write(&c792p[id]->bitSet2, C792_DATA_RESET);			\
-    c792Write(&c792p[id]->bitClear2, C792_DATA_RESET);}
-
-#define C792_EXEC_READ_EVENT_COUNT(id) {				\
-    volatile unsigned short s1, s2;					\
-    s1 = c792Read(&c792p[id]->evCountL);				\
-    s2 = c792Read(&c792p[id]->evCountH);				\
-    c792EventCount[id] = (c792EventCount[id]&0xff000000) +		\
-      (s2<<16) +							\
-      (s1);}
-#define C792_EXEC_SET_EVTREADCNT(id,val) {			       \
-    if(c792EvtReadCnt[id] < 0)					       \
-      c792EvtReadCnt[id] = val;					       \
-    else							       \
-      c792EvtReadCnt[id] = (c792EvtReadCnt[id]&0x7f000000) + val;}
-
-#define C792_EXEC_CLR_EVENT_COUNT(id) {		\
-    c792Write(&c792p[id]->evCountReset, 1);	\
-    c792EventCount[id] = 0;}
-#define C792_EXEC_INCR_EVENT(id) {		\
-    c792Write(&c792p[id]->incrEvent, 1);	\
-    c792EvtReadCnt[id]++;}
-#define C792_EXEC_INCR_WORD(id) {		\
-    c792Write(&c792p[id]->incrOffset, 1);}
-#define C792_EXEC_GATE(id) {			\
-    c792Write(&c792p[id]->swComm, 1);}
 
 /* Function Prototypes */
 STATUS c792Init (UINT32 addr, UINT32 addr_inc, int nadc, UINT16 crateID);

@@ -3,7 +3,7 @@
 #    Makefile
 #
 # Description:
-#    Template Driver Makefile
+#    caen792 Driver Makefile
 #
 #
 BASENAME=c792
