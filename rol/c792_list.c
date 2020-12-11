@@ -34,6 +34,7 @@
 /* #define INTRANDOMPULSER */
 /* #define INTFIXEDPULSER */
 
+#define C792_BANKID 792
 #define ADC_ID 0
 #define MAX_ADC_DATA 34
 
@@ -213,7 +214,7 @@ rocTrigger(int arg)
 
   if(status > 0)
     {
-      BANKOPEN(5,BT_UI4,blockLevel);
+      BANKOPEN(C792_BANKID,BT_UI4,blockLevel);
 
       dCnt = c792ReadBlock(ADC_ID,dma_dabufp,MAX_ADC_DATA);
       if(dCnt <= 0)
