@@ -1,88 +1,142 @@
 #
-# Description:  Makefile for c792Lib.o
-#   This driver is specific to VxWorks BSPs and must be compiled
-#   with access to vxWorks headers.
+# File:
+#    Makefile
 #
-# SVN: $Rev$
+# Description:
+#    caen792 Driver Makefile
 #
-# Uncomment the line before for compiling for a Linux/Intel-based Controler
-#ARCH=Linux
 #
-
-#Check Operating system we are using
-ifndef OSNAME
-  OSNAME := $(subst -,_,$(shell uname))
-endif
-
-ifndef ARCH
-  ARCH = VXWORKSPPC
-endif
-
-ifeq ($(ARCH),VXWORKSPPC)
-INCDIR=/site/vxworks/5.5/ppc/target/h
-CC = ccppc
-LD = ldppc
-DEFS = -mcpu=604 -DCPU=PPC604 -DVXWORKS -D_GNU_TOOL -DVXWORKSPPC
-INCS = -fno-for-scope -fno-builtin -fvolatile -fstrength-reduce -mlongcall -I. -I$(INCDIR)
-CFLAGS = -O $(DEFS)
-endif
-
-ifeq ($(ARCH),VXWORKS68K51)
-INCDIR=/site/vxworks/5.3/68k/target/h
-CC = cc68k
-DEFS = -DCPU=MC68040 -DVXWORKS -DVXWORKS68K51
-INCS = -Wall -mc68020 -fvolatile -fstrength-reduce -nostdinc -I. -I$(INCDIR)
-CFLAGS = -O $(DEFS)
-endif
-
-ifeq ($(ARCH),Linux)
-
-ifndef LINUXVME_LIB
-	LINUXVME_LIB	= $CODA/extensions/linuxvme/libs
-endif
-ifndef LINUXVME_INC
-	LINUXVME_INC	= $CODA/extensions/linuxvme/include
-endif
-CC = gcc
-AR = ar
-RANLIB = ranlib
-DEFS = -DJLAB
-INCS = -I. -I${LINUXVME_INC}
-CFLAGS = -O ${DEFS} -O2  -L. -L${LINUXVME_LIB}
-ifdef DEBUG
-CFLAGS += -Wall -g
-endif
-
-endif
-
-ifeq ($(ARCH),Linux)
-all: echoarch libc792.a
+BASENAME=c792
+#
+# Uncomment DEBUG line, to include some debugging info ( -g and -Wall)
+DEBUG	?= 1
+QUIET	?= 1
+#
+ifeq ($(QUIET),1)
+        Q = @
 else
-all: echoarch c792Lib.o
+        Q =
 endif
 
-c792Lib.o: caen792Lib.c c792Lib.h
-	$(CC) -c $(CFLAGS) $(INCS) -o $@ caen792Lib.c
+ARCH	?= $(shell uname -m)
 
+# Check for CODA 3 environment
+ifdef CODA_VME
 
-libc792.a: c792Lib.o
-	$(CC) -fpic -shared $(CFLAGS) $(INCS) -o libc792.so caen792Lib.c
-	$(AR) ruv libc792.a c792Lib.o
-	$(RANLIB) libc792.a
+INC_CODA	= -I${CODA_VME}/include
+LIB_CODA	= -L${CODA_VME_LIB}
 
-links: libc792.a
-	ln -sf $(PWD)/libc792.a $(LINUXVME_LIB)/libc792.a
-	ln -sf $(PWD)/libc792.so $(LINUXVME_LIB)/libc792.so
-	ln -sf $(PWD)/c792Lib.h $(LINUXVME_INC)/c792Lib.h
+endif
+
+# Defs and build for PPC using VxWorks
+ifeq (${ARCH}, PPC)
+OS			= VXWORKS
+VXWORKS_ROOT		?= /site/vxworks/5.5/ppc/target
+
+ifdef LINUXVME_INC
+VME_INCLUDE             ?= -I$(LINUXVME_INC)
+endif
+
+CC			= ccppc
+LD			= ldppc
+DEFS			= -mcpu=604 -DCPU=PPC604 -DVXWORKS -D_GNU_TOOL -mlongcall \
+				-fno-for-scope -fno-builtin -fvolatile -DVXWORKSPPC
+INCS			= -I. -I$(VXWORKS_ROOT)/h  \
+				$(VME_INCLUDE) ${INC_CODA}
+CFLAGS			= $(INCS) $(DEFS)
+else
+OS			= LINUX
+endif
+
+# Check for CODA environment
+ifdef CODA_VME
+
+INC_CODA	= -I${CODA_VME}/include
+LIB_CODA	= -L${CODA_VME_LIB}
+
+endif
+
+# Defs and build for i686, x86_64 Linux
+ifeq ($(OS),LINUX)
+
+# Safe defaults
+LINUXVME_LIB		?= ../lib
+LINUXVME_INC		?= ../include
+
+CC			= gcc
+ifeq ($(ARCH),i686)
+CC			+= -m32
+endif
+AR                      = ar
+RANLIB                  = ranlib
+CFLAGS			= -L. -L${LINUXVME_LIB} ${LIB_CODA}
+INCS			= -I. -I${LINUXVME_INC} ${INC_CODA}
+
+LIBS			= lib${BASENAME}.a lib${BASENAME}.so
+endif #OS=LINUX#
+
+ifdef DEBUG
+CFLAGS			+= -Wall -g
+else
+CFLAGS			+= -O2
+endif
+SRC			= caen792Lib.c
+HDRS			= c792Lib.h
+OBJ			= $(SRC:.c=.o)
+DEPS			= $(SRC:.c=.d)
+
+ifeq ($(OS),LINUX)
+all: echoarch ${LIBS}
+else
+all: echoarch $(OBJ)
+endif
+
+%.o: %.c
+	@echo " CC     $@"
+	${Q}$(CC) $(CFLAGS) $(INCS) -c -o $@ $(SRC)
+
+%.so: $(SRC)
+	@echo " CC     $@"
+	${Q}$(CC) -fpic -shared $(CFLAGS) $(INCS) -o $(@:%.a=%.so) $(SRC)
+
+%.a: $(SRC)
+	@echo " AR     $@"
+	${Q}$(AR) ru $@ $<
+	@echo " RANLIB $@"
+	${Q}$(RANLIB) $@
+
+ifeq ($(OS),LINUX)
+install: $(LIBS)
+	@echo " CP     $<"
+	${Q}cp $(PWD)/$< $(LINUXVME_LIB)/$<
+	@echo " CP     $(<:%.a=%.so)"
+	${Q}cp $(PWD)/$(<:%.a=%.so) $(LINUXVME_LIB)/$(<:%.a=%.so)
+	@echo " CP     ${BASENAME}Lib.h"
+	${Q}cp ${HDRS} $(LINUXVME_INC)
+
+coda_install: $(LIBS)
+	@echo " CP     $<"
+	${Q}cp $(PWD)/$< $(CODA_VME_LIB)/$<
+	@echo " CP     $(<:%.a=%.so)"
+	${Q}cp $(PWD)/$(<:%.a=%.so) $(CODA_VME_LIB)/$(<:%.a=%.so)
+	@echo " CP     ${BASENAME}Lib.h"
+	${Q}cp ${HDRS} $(CODA_VME)/include
+
+%.d: %.c
+	@echo " DEP    $@"
+	@set -e; rm -f $@; \
+	$(CC) -MM -shared $(INCS) $< > $@.$$$$; \
+	sed 's,\($*\)\.o[ :]*,\1.o $@ : ,g' < $@.$$$$ > $@; \
+	rm -f $@.$$$$
+
+-include $(DEPS)
+
+endif
 
 clean:
-	rm -f *.o *.so *.a
+	@rm -vf ${OBJ} lib${BASENAME}.{a,so} ${DEPS}
 
 echoarch:
-	echo "Make for $(ARCH)"
+	@echo "Make for $(OS)-$(ARCH)"
 
-rol:
-	make -f Makefile-rol
-
-rolclean:
-	make -f Makefile-rol clean
+.PHONY: clean echoarch
