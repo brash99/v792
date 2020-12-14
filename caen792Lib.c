@@ -283,6 +283,18 @@ c792Init (UINT32 addr, UINT32 addr_inc, int nadc, UINT16 crateID)
   }
 }
 
+UINT32
+c792ScanMask()
+{
+  int iadc=0;
+  UINT32 rval=0;
+
+  for(iadc=0; iadc<Nc792; iadc++)
+    rval |= 1<<iadc;
+
+  return rval;
+}
+
 /*******************************************************************************
 *
 * c792Status - Gives Status info on specified QDC
@@ -1090,6 +1102,40 @@ c792Dready(int id)
   return(nevts);
 }
 
+unsigned int
+c792GDReady(unsigned int idmask, int nloop)
+{
+  int iloop, id, stat=0;
+  unsigned int dmask=0;
+
+  C792LOCK;
+  for(iloop = 0; iloop < nloop; iloop++)
+    {
+      for(id=0; id<Nc792; id++)
+	{
+	  if(idmask & (1<<id))
+	    { /* id used */
+
+	      if(!(dmask & (1<<id)))
+		{ /* No data ready yet. Check it now. */
+		  stat = vmeRead16(&c792p[id]->status1)&C792_DATA_READY;
+
+		  if(stat)
+		    dmask |= (1<<id);
+
+		  if(dmask == idmask)
+		    { /* Blockready mask matches user idmask */
+		      C792UNLOCK;
+		      return(dmask);
+		    }
+		}
+	    }
+	}
+    }
+  C792UNLOCK;
+
+  return(dmask);
+}
 
 /*******************************************************************************
 *

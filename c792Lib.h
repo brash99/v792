@@ -150,6 +150,7 @@ struct c792_ROM_struct {
 
 /* Function Prototypes */
 STATUS c792Init (UINT32 addr, UINT32 addr_inc, int nadc, UINT16 crateID);
+UINT32 c792ScanMask();
 void   c792Status( int id, int reg, int sflag);
 int    c792PrintEvent(int id, int pflag);
 int    c792ReadEvent(int id, UINT32 *data);
@@ -160,6 +161,7 @@ STATUS c792IntEnable (int id, UINT16 evCnt);
 STATUS c792IntDisable (int iflag);
 STATUS c792IntResume (void);
 UINT16 c792Sparse(int id, int over, int under);
+unsigned int c792GDReady(unsigned int idmask, int nloop);
 int    c792Dready(int id);
 void   c792ClearThresh(int id);
 short  c792SetThresh(int id, int chan, short val);
