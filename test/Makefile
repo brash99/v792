@@ -3,7 +3,7 @@
 #    Makefile
 #
 # Description:
-#    Makefile for the SSP test programs
+#    Makefile for the v792 library test programs
 #
 #
 DEBUG	?= 1

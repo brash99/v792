@@ -26,9 +26,9 @@
 #include "vxLib.h"
 #include "fppLib.h"
 #else
-#include "jvme.h"
 #include <pthread.h>
 #endif
+#include "jvme.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -75,11 +75,11 @@ LOCAL UINT32      c792IntVec      = C792_INT_VEC;             /* default interru
 
 /* Define global variables */
 int Nc792 = 0;                                /* Number of QDCs in Crate */
-volatile struct c792_struct *c792p[20];       /* pointers to QDC memory map */
-volatile struct c792_struct *c792pl[20];      /* Support for 68K second memory map A24/D32 */
+volatile struct c792_struct *c792p[C792_MAX_MODULES];       /* pointers to QDC memory map */
+volatile struct c792_struct *c792pl[C792_MAX_MODULES];      /* Support for 68K second memory map A24/D32 */
 int c792IntCount = 0;                         /* Count of interrupts from QDC */
-int c792EventCount[20];                       /* Count of Events taken by QDC (Event Count Register value) */
-int c792EvtReadCnt[20];                       /* Count of events read from specified QDC */
+int c792EventCount[C792_MAX_MODULES];                       /* Count of Events taken by QDC (Event Count Register value) */
+int c792EvtReadCnt[C792_MAX_MODULES];                       /* Count of events read from specified QDC */
 
 unsigned long c792MemOffset = 0;               /* CPUs A24 or A32 address space offset */
 

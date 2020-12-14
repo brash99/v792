@@ -12,7 +12,7 @@
 #ifndef __C792LIB__
 #define __C792LIB__
 
-
+#define C792_MAX_MODULES    20
 #define C792_MAX_CHANNELS   32
 #define C792_MAX_WORDS_PER_EVENT  34
 
