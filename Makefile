@@ -48,14 +48,6 @@ else
 OS			= LINUX
 endif
 
-# Check for CODA environment
-ifdef CODA_VME
-
-INC_CODA	= -I${CODA_VME}/include
-LIB_CODA	= -L${CODA_VME_LIB}
-
-endif
-
 # Defs and build for i686, x86_64 Linux
 ifeq ($(OS),LINUX)
 
@@ -99,7 +91,7 @@ endif
 	@echo " CC     $@"
 	${Q}$(CC) -fpic -shared $(CFLAGS) $(INCS) -o $(@:%.a=%.so) $(SRC)
 
-%.a: $(SRC)
+%.a: $(OBJ)
 	@echo " AR     $@"
 	${Q}$(AR) ru $@ $<
 	@echo " RANLIB $@"

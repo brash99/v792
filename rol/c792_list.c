@@ -1,6 +1,6 @@
 /*************************************************************************
  *
- *  c792_linux_list.c - Library of routines for the user to write for
+ *  c792_list.c - Library of routines for the user to write for
  *                      readout and buffering of events using
  *                      a Linux VME controller.
  *
@@ -10,10 +10,17 @@
 #define MAX_EVENT_POOL     400
 #define MAX_EVENT_LENGTH   1024*10      /* Size in Bytes */
 
-/* Define TI Type (TI_MASTER or TI_SLAVE) */
+/* Initialize TI as a master (TI_MASTER) or slave (TI_SLAVE) */
 #define TI_MASTER
+
+#ifdef TI_MASTER
 /* EXTernal trigger source (e.g. front panel ECL input), POLL for available data */
 #define TI_READOUT TI_READOUT_EXT_POLL
+#else
+/* TS trigger source (e.g. fiber), POLL for available data */
+#define TI_READOUT TI_READOUT_TS_POLL
+#endif
+
 /* TI VME address, or 0 for Auto Initialize (search for TI by slot) */
 #define TI_ADDR  0
 
@@ -35,8 +42,8 @@
 /* #define INTFIXEDPULSER */
 
 #define C792_BANKID 792
-#define ADC_ID 0
 #define MAX_ADC_DATA 34
+extern int Nc792;
 
 
 /* function prototype */
@@ -58,6 +65,7 @@ rocDownload()
   /* Define BLock Level */
   blockLevel = BLOCKLEVEL;
 
+#ifdef TI_MASTER
   /*****************
    *   TI SETUP
    *****************/
@@ -93,10 +101,16 @@ rocDownload()
 
   /* Set Trigger Buffer Level */
   tiSetBlockBufferLevel(BUFFERLEVEL);
+#endif
 
   tiStatus(0);
 
-  c792Init(0xa10000,0,1,0);
+  c792Init(0x200000,0x80000,2,0);
+  int iadc;
+  for(iadc = 0; iadc < Nc792; iadc++)
+    {
+      c792SetGeoAddress(iadc, iadc+3);
+    }
 
   printf("rocDownload: User Download Executed\n");
 
@@ -114,12 +128,14 @@ rocPrestart()
 
   /* Program/Init VME Modules Here */
   /* Setup ADCs (no sparcification, enable berr for block reads) */
-  c792Sparse(ADC_ID,0,0);
-  c792Clear(ADC_ID);
-  c792EnableBerr(ADC_ID);
-
-  c792Status(ADC_ID,0,0);
-
+  int iadc;
+  for(iadc = 0; iadc < Nc792; iadc++)
+    {
+      c792Sparse(iadc,0,0);
+      c792Clear(iadc);
+      c792EnableBerr(iadc);
+    }
+  c792GStatus(0);
 
   printf("rocPrestart: User Prestart Executed\n");
 
@@ -138,6 +154,11 @@ rocGo()
   printf("rocGo: Block Level set to %d\n",blockLevel);
 
   /* Enable/Set Block Level on modules, if needed, here */
+  int iadc;
+  for(iadc = 0; iadc < Nc792; iadc++)
+    c792Enable(iadc);
+
+#ifdef TI_MASTER
 #if (defined (INTFIXEDPULSER) | defined(INTRANDOMPULSER))
   printf("************************************************************\n");
   printf("%s: TI Configured for Internal Pulser Triggers\n",
@@ -158,6 +179,7 @@ rocGo()
   */
   tiSoftTrig(1,0xffff,700,0);
 #endif
+#endif
 
   /* Interrupts/Polling enabled after conclusion of rocGo() */
 }
@@ -166,6 +188,7 @@ void
 rocEnd()
 {
 
+#ifdef TI_MASTER
   /* Example: How to stop internal pulser trigger */
 #ifdef INTRANDOMPULSER
   /* Disable random trigger */
@@ -174,6 +197,15 @@ rocEnd()
   /* Disable Fixed Rate trigger */
   tiSoftTrig(1,0,700,0);
 #endif
+#endif
+
+  int iadc;
+  for(iadc = 0; iadc < Nc792; iadc++)
+    {
+      c792Disable(iadc);
+    }
+  c792GStatus(0);
+
 
   tiStatus(0);
 
@@ -202,42 +234,66 @@ rocTrigger(int arg)
       dma_dabufp += dCnt;
     }
 
-  int status, itimeout=0;
+  unsigned int scanmask = 0, datascan = 0;
+  int iadc;
 
   /* Check if an Event is available */
-  while(itimeout<1000)
+  scanmask = c792ScanMask();
+  datascan = c792GDReady(scanmask, 1000);
+
+  BANKOPEN(C792_BANKID,BT_UI4,blockLevel);
+  if(datascan==scanmask)
     {
-      itimeout++;
-      status = c792Dready(ADC_ID);
-      if(status>0) break;
-    }
-
-  if(status > 0)
-    {
-      BANKOPEN(C792_BANKID,BT_UI4,blockLevel);
-
-      dCnt = c792ReadBlock(ADC_ID,dma_dabufp,MAX_ADC_DATA);
-      if(dCnt <= 0)
+      for(iadc = 0; iadc < Nc792; iadc++)
 	{
-	  logMsg("ERROR: ADC Read Failed - Status 0x%x\n",
-		 dCnt,0,0,0,0,0);
-	  c792Clear(ADC_ID);
-	}
-      else
-	{
-	  dma_dabufp += dCnt;
+	  dCnt = c792ReadBlock(iadc,dma_dabufp,MAX_ADC_DATA+40);
+	  if(dCnt <= 0)
+	    {
+	      logMsg("%4d: ERROR: ADC %2d Read Failed - Status 0x%x\n",
+		     tiGetIntCount(),
+		     iadc, dCnt,0,0,0,0);
+	      *dma_dabufp++ = LSWAP(iadc);
+	      *dma_dabufp++ = LSWAP(0xda00bad1);
+	      c792Clear(iadc);
+	    }
+	  else
+	    {
+	      dma_dabufp += dCnt;
+	    }
 	}
 
-      BANKCLOSE;
     }
   else
     {
-      logMsg("ERROR: NO data in ADC  datascan = 0x%x, itimeout=%d\n",
-	     status,itimeout,0,0,0,0);
-      c792Clear(ADC_ID);
+      logMsg("%4d: ERROR: datascan != scanmask for ADC  (0x%08x != 0x%08x)\n",
+	     tiGetIntCount(),
+	     datascan,scanmask,0,0,0,0);
+      *dma_dabufp++ = LSWAP(datascan);
+      *dma_dabufp++ = LSWAP(scanmask);
+      *dma_dabufp++ = LSWAP(0xda00bad2);
+
+      for(iadc = 0; iadc < Nc792; iadc++)
+	c792Clear(iadc);
     }
+  BANKCLOSE;
 
   /* Set TI output 0 low */
   tiSetOutputPort(0,0,0,0);
 
 }
+
+void
+rocCleanup()
+{
+
+#ifdef TI_MASTER
+  tiResetSlaveConfig();
+#endif
+}
+
+
+/*
+  Local Variables:
+  compile-command: "make -k -B c792_list.so"
+  End:
+*/
