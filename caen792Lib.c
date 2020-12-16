@@ -28,10 +28,10 @@
 #else
 #include <pthread.h>
 #endif
-#include "jvme.h"
-
+#include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include "jvme.h"
 
 /* Include QDC definitions */
 #include "c792Lib.h"
@@ -395,6 +395,178 @@ c792Status( int id, int reg, int sflag)
 
 /*******************************************************************************
 *
+* c792GStatus - Gives Summary Status info on all initialized QDCs
+*
+*
+* RETURNS: None
+*/
+
+void
+c792GStatus(int flag)
+{
+  struct c792_struct *r792;
+  unsigned long *addr;
+  int iadc;
+
+  r792 = (struct c792_struct *)malloc(C792_MAX_MODULES*sizeof(struct c792_struct));
+  if(r792 == NULL)
+    {
+      printf("%s: ERROR: Out of Memory\n", __func__);
+      return;
+    }
+
+  addr = (unsigned long *)malloc(C792_MAX_MODULES*sizeof(unsigned long));
+  if(addr == NULL)
+    {
+      printf("%s: ERROR: Out of Memory\n", __func__);
+      return;
+    }
+
+  C792LOCK;
+  for(iadc = 0; iadc < Nc792; iadc++)
+    {
+      addr[iadc] = (unsigned long)c792p[iadc] - c792MemOffset;
+
+      r792[iadc].rev = vmeRead16(&c792p[iadc]->rev);
+      r792[iadc].geoAddr = vmeRead16(&c792p[iadc]->geoAddr);
+      r792[iadc].cbltAddr = vmeRead16(&c792p[iadc]->cbltAddr);
+      r792[iadc].bitSet1 = vmeRead16(&c792p[iadc]->bitSet1);
+      r792[iadc].status1 = vmeRead16(&c792p[iadc]->status1);
+      r792[iadc].control1 = vmeRead16(&c792p[iadc]->control1);
+      r792[iadc].cbltControl = vmeRead16(&c792p[iadc]->cbltControl);
+      r792[iadc].evTrigger = vmeRead16(&c792p[iadc]->evTrigger);
+      r792[iadc].status2 = vmeRead16(&c792p[iadc]->status2);
+      r792[iadc].evCountL = vmeRead16(&c792p[iadc]->evCountL);
+      r792[iadc].evCountH = vmeRead16(&c792p[iadc]->evCountH);
+      r792[iadc].fclrWindow = vmeRead16(&c792p[iadc]->fclrWindow);
+      r792[iadc].bitSet2 = vmeRead16(&c792p[iadc]->bitSet2);
+
+    }
+  C792UNLOCK;
+
+  printf("\n");
+  /* Parameters from Registers */
+  printf("                    CAEN792 ADC Module Status\n\n");
+  printf("            Firmware                                          Control\n");
+  printf("  #  GEO    Revision     Address      CBLT/MCST Address       Termination\n");
+  printf("--------------------------------------------------------------------------------\n");
+
+  for(iadc = 0; iadc < Nc792; iadc++)
+    {
+      printf(" %2d  ",iadc);
+
+      printf("%2d     ", r792[iadc].geoAddr & 0x1F);
+
+      printf("0x%04x       ",r792[iadc].rev);
+
+      printf("0x%08lx   ",addr[iadc]);
+
+      printf("0x%08x - ", (r792[iadc].cbltAddr)<<24);
+
+      printf("%s   ",
+	     (r792[iadc].cbltControl&0x3)==0?"DISABLED":
+	     (r792[iadc].cbltControl&0x3)==1?"LAST    ":
+	     (r792[iadc].cbltControl&0x3)==2?"FIRST   ":
+	     (r792[iadc].cbltControl&0x3)==3?"MIDDLE  ":
+	     "        ");
+
+      printf("%s",
+	     (r792[iadc].status1 & 0xC0)==0x40?"ON":
+	     (r792[iadc].status1 & 0xC0)==0x80?"OFF":
+	     "MIXED");
+
+      printf("\n");
+    }
+
+  printf("--------------------------------------------------------------------------------\n");
+
+  printf("\n");
+  printf("                              Readout Configuration\n\n");
+  printf("     Bus     FP     Block  Align  Fast Clear   Suppress   Auto  Empty  Trg\n");
+  printf("  #  Errors  Reset  End    64     Window [us]  OF   Zero  Incr  Block  Counter\n");
+  printf("--------------------------------------------------------------------------------\n");
+
+  for(iadc = 0; iadc < Nc792; iadc++)
+    {
+      printf(" %2d  ",iadc);
+
+      printf("%s     ",
+	     (r792[iadc].control1 & 0x20)?"ON ":"OFF");
+
+      printf("%s  ",
+	     (r792[iadc].control1 & 0x80)?"RESET":"CLEAR");
+
+      printf("%s    ",
+	     (r792[iadc].control1 & 0x4)?"ALL":"EOB");
+
+      printf("%s    ",
+	     (r792[iadc].control1 & 0x40)?"ON ":"OFF");
+
+      printf("%4.1f         ",
+	     ((float)((r792[iadc].fclrWindow & 0x3ff))/32.0) + 7.0);
+
+      printf("%s  ",
+	     (r792[iadc].bitSet2 & 0x8)?"OFF":"ON ");
+
+      printf("%s   ",
+	     (r792[iadc].bitSet2 & 0x10)?"OFF":"ON ");
+
+      printf("%s   ",
+	     (r792[iadc].bitSet2 & 0x800)?"ON ":"OFF");
+
+      printf("%s    ",
+	     (r792[iadc].bitSet2 & 0x1000)?"ON ":"OFF");
+
+      printf("%s",
+	     (r792[iadc].bitSet2 & 0x4000)?"All":"Accepted");
+
+      printf("\n");
+
+    }
+  printf("\n");
+
+  printf("                                 Data Status\n\n");
+  printf("     Output    Data     Block    Block     Busy      Event\n");
+  printf("  #  Buffer    Ready    Level    Status    Status    Counter\n");
+  printf("--------------------------------------------------------------------------------\n");
+  for(iadc = 0; iadc < Nc792; iadc++)
+    {
+      printf(" %2d  ",iadc);
+
+      printf("%s     ",
+	     (r792[iadc].status2 & 0x6) == 0x2 ?"EMPTY":
+	     (r792[iadc].status2 & 0x6) == 0x4 ?" FULL":
+	     "AVAIL");
+
+      printf("%s   ",
+	     (r792[iadc].status2 & 0x1)?"READY":"-----");
+
+      printf("%2d        ",
+	     r792[iadc].evTrigger & 0x1F);
+
+      printf("%s     ",
+	     (r792[iadc].status2 & 0x10)?"READY":"-----");
+
+      printf("%s      ",
+	     (r792[iadc].status2 & 0x4)?"BUSY":"----");
+
+      unsigned int evCount = ((unsigned int)(r792[iadc].evCountH & 0xFF) << 16) |
+	(unsigned int)r792[iadc].evCountL;
+      printf("%-8d   ", evCount);
+
+      printf("\n");
+    }
+  printf("--------------------------------------------------------------------------------\n");
+
+  printf("\n");
+  printf("\n");
+
+  if(r792)
+    free(r792);
+}
+
+/*******************************************************************************
+*
 * c792PrintEvent - Print event from QDC to standard out.
 *
 *
@@ -646,7 +818,7 @@ c792ReadBlock(int id, volatile UINT32 *data, int nwrds)
 
   int retVal, xferCount=0;
   UINT32 evID, vmeAdr;
-  UINT16 stat = 0;
+  UINT16 reg = 0, stat = 0;
   UINT32 trailer;
 
   if((id<0) || (c792p[id] == NULL)) {
@@ -691,7 +863,8 @@ c792ReadBlock(int id, volatile UINT32 *data, int nwrds)
 
   if(retVal != 0) {
     /* Check to see if error was generated by QDC */
-    stat = vmeRead16(&c792p[id]->bitSet1)&C792_VME_BUS_ERROR;
+    reg = vmeRead16(&c792p[id]->bitSet1);
+    stat = reg & C792_VME_BUS_ERROR;
     if((retVal>0) && (stat)) {
       vmeWrite16(&c792p[id]->bitClear1, C792_VME_BUS_ERROR);
       /*logMsg("c792ReadBlock: INFO: DMA terminated by QDC - Transfer OK\n",0,0,0,0,0,0); */
@@ -700,34 +873,46 @@ c792ReadBlock(int id, volatile UINT32 *data, int nwrds)
 #else
       xferCount = (retVal>>2);  /* Number of Longwords transfered */
 #endif
-      trailer = data[xferCount-1];
+
+      /* Work backwards until the EOB is found */
+      int iword = xferCount -1, ieob = -1;
+      while(iword >= 0)
+	{
+	  trailer = data[iword];
 #ifndef VXWORKS
-      trailer = LSWAP(trailer);
+	  trailer = LSWAP(trailer);
 #endif
+	  if ((trailer&C792_DATA_ID_MASK) == C792_TRAILER_DATA) {
+	    ieob = iword;
+	    break;
+	  }
+	  iword--;
+	}
+
+      if(ieob == -1)
+	{
+	  logMsg("%s(%d): ERROR: Failed to find EOB (xferCount = %d)\n",
+		 __func__, id, xferCount);
+	  C792UNLOCK;
+	  return(xferCount); // FIXME: return ERROR;
+	}
+
+      xferCount = iword + 1;
       if ((trailer&C792_DATA_ID_MASK) == C792_TRAILER_DATA) {
 	evID = trailer&C792_EVENTCOUNT_MASK;
 	C792_EXEC_SET_EVTREADCNT(id,evID);
 	C792UNLOCK;
 	return(xferCount); /* Return number of data words transfered */
       } else {
-	/* check if it is a filler word. if so then back up one word and check again */
-	trailer = data[xferCount-2];
-#ifndef VXWORKS
-	trailer = LSWAP(trailer);
-#endif
-	if ((trailer&C792_DATA_ID_MASK) == C792_TRAILER_DATA) {
-	  evID = trailer&C792_EVENTCOUNT_MASK;
-	  C792_EXEC_SET_EVTREADCNT(id,evID);
-	  C792UNLOCK;
-	  return(xferCount-1);
-	} else {
-	  logMsg("c792ReadBlock: ERROR: Invalid Trailer data 0x%x\n",trailer,0,0,0,0,0);
-	  C792UNLOCK;
-	  return(ERROR);
-	}
+	logMsg("%s(%d): ERROR: Invalid Trailer data 0x%x\n",
+	       __func__, id,trailer);
+	C792UNLOCK;
+	/* return(ERROR); */
+	return(xferCount);
       }
     } else {
-      logMsg("c792ReadBlock: ERROR in DMA transfer 0x%x\n",retVal,0,0,0,0,0);
+      logMsg("%s(%d): ERROR in DMA transfer retVal = 0x%x stat = %d reg = 0x%x\n",
+	     __func__,id,retVal,stat, reg);
       C792UNLOCK;
       return(ERROR);
     }
@@ -1268,7 +1453,8 @@ c792EnableBerr(int id)
 
   C792LOCK;
   vmeWrite16(&c792p[id]->control1,
-	    vmeRead16(&c792p[id]->control1) | C792_BERR_ENABLE | C792_BLK_END);
+	    vmeRead16(&c792p[id]->control1) |
+	     C792_BERR_ENABLE | C792_BLK_END | C792_ALIGN64);
   C792UNLOCK;
 }
 
@@ -1372,7 +1558,25 @@ c792Reset(int id)
   C792LOCK;
   C792_EXEC_DATA_RESET(id);
   C792_EXEC_SOFT_RESET(id);
+  C792_EXEC_CLR_EVENT_COUNT(id);
   C792UNLOCK;
   c792EvtReadCnt[id] = -1;
   c792EventCount[id] =  0;
+}
+
+int
+c792SetGeoAddress(int id, int geo)
+{
+  if((id<0) || (c792p[id] == NULL)) {
+    printf("%s: ERROR : QDC id %d not initialized \n",
+	   __func__, id);
+    return ERROR;
+  }
+
+  C792LOCK;
+  vmeWrite16(&c792p[id]->geoAddr, geo);
+  C792_EXEC_SOFT_RESET(id);
+  C792UNLOCK;
+
+  return OK;
 }

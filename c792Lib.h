@@ -152,6 +152,7 @@ struct c792_ROM_struct {
 STATUS c792Init (UINT32 addr, UINT32 addr_inc, int nadc, UINT16 crateID);
 UINT32 c792ScanMask();
 void   c792Status( int id, int reg, int sflag);
+void   c792GStatus(int flag);
 int    c792PrintEvent(int id, int pflag);
 int    c792ReadEvent(int id, UINT32 *data);
 int    c792FlushEvent(int id, int fflag);
@@ -178,5 +179,6 @@ void   c792Enable(int id);
 void   c792Disable(int id);
 void   c792Clear(int id);
 void   c792Reset(int id);
+int    c792SetGeoAddress(int id, int geo);
 
 #endif /* __C792LIB__ */
