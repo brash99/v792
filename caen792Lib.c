@@ -817,6 +817,8 @@ c792ReadBlock(int id, volatile UINT32 *data, int nwrds)
 {
 
   int retVal, xferCount=0;
+  int dummy=0;
+  volatile unsigned int *laddr;
   UINT32 evID, vmeAdr;
   UINT16 reg = 0, stat = 0;
   UINT32 trailer;
@@ -826,6 +828,26 @@ c792ReadBlock(int id, volatile UINT32 *data, int nwrds)
     return(ERROR);
   }
 
+  /* Check for 8 byte boundary for address - insert dummy word (Slot 0 FADC Dummy DATA)*/
+  if((unsigned long) (data)&0x7)
+    {
+#ifdef VXWORKS
+      *data = C792_INVALID_DATA;
+#else
+      *data = LSWAP(C792_INVALID_DATA);
+#endif
+      dummy = 1;
+      laddr = (data + 1);
+      xferCount = 1;
+    }
+  else
+    {
+      dummy = 0;
+      laddr = data;
+      xferCount = 0;
+    }
+
+
   C792LOCK;
 #ifdef VXWORKSPPC
   /* Don't bother checking if there is a valid event. Just blast data out of the
@@ -833,7 +855,7 @@ c792ReadBlock(int id, volatile UINT32 *data, int nwrds)
      Also assume that the Universe DMA programming is setup. */
 
   vmeAdr = (UINT32)(c792p[id]->data) - c792MemOffset;
-  retVal = sysVmeDmaSend((UINT32)data, vmeAdr, (nwrds<<2), 0);
+  retVal = sysVmeDmaSend((UINT32)laddr, vmeAdr, (nwrds<<2), 0);
   if(retVal < 0) {
     logMsg("c792ReadBlock: ERROR in DMA transfer Initialization 0x%x\n",retVal,0,0,0,0,0);
     C792UNLOCK;
@@ -845,12 +867,12 @@ c792ReadBlock(int id, volatile UINT32 *data, int nwrds)
 #elif defined(VXWORKS68K51)
 
   /* 68K Block 32 transfer from FIFO using VME2Chip */
-  retVal = mvme_dma((long)data, 1, (long)(c792pl[id]->data), 0, nwrds, 1);
+  retVal = mvme_dma((long)laddr, 1, (long)(c792pl[id]->data), 0, nwrds, 1);
 
 #else
   /* Linux readout with jvme library */
   vmeAdr = (unsigned long)(c792p[id]->data) - c792MemOffset;
-  retVal = vmeDmaSend((unsigned long)data, vmeAdr, (nwrds<<2));
+  retVal = vmeDmaSend((unsigned long)laddr, vmeAdr, (nwrds<<2));
   if(retVal < 0) {
     logMsg("c792ReadBlock: ERROR in DMA transfer Initialization 0x%x\n",retVal,0,0,0,0,0);
     C792UNLOCK;
@@ -869,9 +891,9 @@ c792ReadBlock(int id, volatile UINT32 *data, int nwrds)
       vmeWrite16(&c792p[id]->bitClear1, C792_VME_BUS_ERROR);
       /*logMsg("c792ReadBlock: INFO: DMA terminated by QDC - Transfer OK\n",0,0,0,0,0,0); */
 #ifdef VXWORKS
-      xferCount = (nwrds - (retVal>>2));  /* Number of Longwords transfered */
+      xferCount = (nwrds - (retVal>>2) + dummy);  /* Number of Longwords transfered */
 #else
-      xferCount = (retVal>>2);  /* Number of Longwords transfered */
+      xferCount = (retVal>>2) + dummy;  /* Number of Longwords transfered */
 #endif
 
       /* Work backwards until the EOB is found */
@@ -1558,6 +1580,20 @@ c792Reset(int id)
   C792LOCK;
   C792_EXEC_DATA_RESET(id);
   C792_EXEC_SOFT_RESET(id);
+  C792_EXEC_CLR_EVENT_COUNT(id);
+  C792UNLOCK;
+  c792EvtReadCnt[id] = -1;
+  c792EventCount[id] =  0;
+}
+
+void
+c792EventCounterReset(int id)
+{
+  if((id<0) || (c792p[id] == NULL)) {
+    logMsg("c792Reset: ERROR : QDC id %d not initialized \n",id,0,0,0,0,0);
+    return;
+  }
+  C792LOCK;
   C792_EXEC_CLR_EVENT_COUNT(id);
   C792UNLOCK;
   c792EvtReadCnt[id] = -1;

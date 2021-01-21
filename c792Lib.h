@@ -179,6 +179,7 @@ void   c792Enable(int id);
 void   c792Disable(int id);
 void   c792Clear(int id);
 void   c792Reset(int id);
+void   c792EventCounterReset(int id);
 int    c792SetGeoAddress(int id, int geo);
 
 #endif /* __C792LIB__ */
