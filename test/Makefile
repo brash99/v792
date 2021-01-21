@@ -18,11 +18,12 @@ endif
 ARCH	?= $(shell uname -m)
 OS	?= LINUX
 
+# Check for CODA 3 environment
 ifdef CODA_VME
-CODA_VME_INC = -I${CODA_VME}/include
-endif
-ifdef CODA_VME_LIB
-CODA_LIB = -L${CODA_VME_LIB}
+
+INC_CODA	= -I${CODA_VME}/include
+LIB_CODA	= -L${CODA_VME_LIB}
+
 endif
 
 # linuxvme defaults, if they're not already defined
@@ -34,8 +35,8 @@ CROSS_COMPILE		=
 CC			= $(CROSS_COMPILE)gcc
 AR                      = ar
 RANLIB                  = ranlib
-INCS			= -I. -I../ -I${LINUXVME_INC} ${CODA_VME_INC}
-CFLAGS			= -L. -L../ -L${LINUXVME_LIB} ${CODA_LIB} -lrt -ljvme -lc792
+INCS			= -I. -I../ -I${LINUXVME_INC} ${INC_CODA}
+CFLAGS			= -L. -L../ -L${LINUXVME_LIB} ${LIB_CODA} -lrt -ljvme -lc792
 ifeq ($(DEBUG),1)
 	CFLAGS		+= -Wall -g
 endif

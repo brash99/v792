@@ -103,7 +103,7 @@ install: $(LIBS)
 	${Q}cp $(PWD)/$< $(LINUXVME_LIB)/$<
 	@echo " CP     $(<:%.a=%.so)"
 	${Q}cp $(PWD)/$(<:%.a=%.so) $(LINUXVME_LIB)/$(<:%.a=%.so)
-	@echo " CP     ${BASENAME}Lib.h"
+	@echo " CP     ${HDRS}"
 	${Q}cp ${HDRS} $(LINUXVME_INC)
 
 coda_install: $(LIBS)
@@ -111,7 +111,7 @@ coda_install: $(LIBS)
 	${Q}cp $(PWD)/$< $(CODA_VME_LIB)/$<
 	@echo " CP     $(<:%.a=%.so)"
 	${Q}cp $(PWD)/$(<:%.a=%.so) $(CODA_VME_LIB)/$(<:%.a=%.so)
-	@echo " CP     ${BASENAME}Lib.h"
+	@echo " CP     ${HDRS}"
 	${Q}cp ${HDRS} $(CODA_VME)/include
 
 %.d: %.c

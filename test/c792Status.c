@@ -50,7 +50,6 @@ main(int argc, char *argv[])
   printf("\n");
 
   c792Init(addr, addr_inc, nadc, 0);
-  c792Reset(0);
 
   if(Nc792==0)
     goto CLOSE;

@@ -49,6 +49,9 @@ extern int Nc792;
 /* function prototype */
 void rocTrigger(int arg);
 
+/****************************************
+ *  DOWNLOAD
+ ****************************************/
 void
 rocDownload()
 {
@@ -116,13 +119,18 @@ rocDownload()
 
 }
 
+/****************************************
+ *  PRESTART
+ ****************************************/
 void
 rocPrestart()
 {
 
+#ifdef TI_MASTER
   /* Set number of events per block (broadcasted to all connected TI Slaves)*/
   tiSetBlockLevel(blockLevel);
   printf("rocPrestart: Block Level set to %d\n",blockLevel);
+#endif
 
   tiStatus(0);
 
@@ -133,6 +141,7 @@ rocPrestart()
     {
       c792Sparse(iadc,0,0);
       c792Clear(iadc);
+      c792EventCounterReset(iadc);
       c792EnableBerr(iadc);
     }
   c792GStatus(0);
@@ -141,6 +150,9 @@ rocPrestart()
 
 }
 
+/****************************************
+ *  GO
+ ****************************************/
 void
 rocGo()
 {
@@ -184,6 +196,9 @@ rocGo()
   /* Interrupts/Polling enabled after conclusion of rocGo() */
 }
 
+/****************************************
+ *  END
+ ****************************************/
 void
 rocEnd()
 {
@@ -213,6 +228,9 @@ rocEnd()
 
 }
 
+/****************************************
+ *  TRIGGER
+ ****************************************/
 void
 rocTrigger(int arg)
 {
