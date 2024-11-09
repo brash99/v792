@@ -10,7 +10,7 @@ BASENAME=c792
 #
 # Uncomment DEBUG line, to include some debugging info ( -g and -Wall)
 DEBUG	?= 1
-QUIET	?= 1
+#QUIET	?= 1
 #
 ifeq ($(QUIET),1)
         Q = @

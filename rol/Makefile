@@ -9,7 +9,7 @@
 #
 # Uncomment DEBUG line for debugging info ( -g and -Wall )
 DEBUG=1
-QUIET=1
+#QUIET=1
 #
 ifeq ($(QUIET),1)
         Q = @
@@ -47,7 +47,7 @@ CFLAGS			+= -DLINUX -DDAYTIME=\""`date`"\"
 INCS			= -I. -I${LINUXVME_INC} ${INC_CODA_VME} \
 				-isystem${CODA}/common/include
 LIBS			= -L. -L${LINUXVME_LIB} ${LIB_CODA_VME} -DJLAB \
-				-lrt -lpthread -ljvme -lti $(ROLLIBS)
+				-lrt -lpthread -ljvme -ltir $(ROLLIBS)
 
 # DEFs for compiling CODA readout lists
 CCRL			= ${CODA_BIN}/ccrl
